@@ -1,0 +1,94 @@
+---
+title: "Contour Plot"
+subtitle: "M2.959 - Visualització de dades"
+output: html_document
+date: "2026-10-30"
+lang: ca
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(terra)
+
+```
+
+```{r data_load}
+# CÀRREGA DE DADES -------------------------------------------------------------
+
+# Carreguem les dades com a ràster mitjançant la funció rast (terra):
+
+gebco_data <- rast("gebco_2026_n42.5_s41.0_w2.3_e4.4_geotiff.tif")
+
+# Convertim el ràster en un dataframe amb tres columnes: longitud (long),
+# latitud (lat) i elevació/profunditat (depth). Es fa servir l'argument xy=TRUE
+# per recuperar les coordenades i na.rm = TRUE per eliminar possibles files amb
+# valors NA.
+
+gebco_df <- as.data.frame(gebco_data, xy = TRUE, na.rm = TRUE)
+colnames(gebco_df) <- c("long", "lat", "depth")
+
+```
+
+```{r data_visualization}
+
+# Creem unn vector amb les profunditats on volem canvis de color (línies de
+# contorn):
+
+depths <- c(-3000, -2500, -2000, -1000, -500, -200, -100, 0)
+
+# Generem un gràfic amb ggplot amb la longitud a l'eix x, la latitud a l'eix y
+# i l'elevació/profunditat com a variable z per a la creació dels contorns:
+
+gebco_contour <- ggplot(gebco_df, aes(long, lat, z = depth)) +
+  
+  # Fem servir geom_contour_filled per colorejar l'espai entre contorns, els
+  # quals queden definits amb el vector depths:
+  
+  geom_contour_filled(breaks = depths) +
+  
+  # Afegim contorns extra amb geom_contour (aquest cop sense colorejar), per tal
+  # de destacar el límit del mar amb la terra (0), algunes de les
+  # profunditats més rellevants (-200, -1000, -2000) i algunes característiques
+  # del relleu a terra per donar més "textura" al gràfic (1000):
+  
+  geom_contour(breaks = c(1000, 0, -200, -1000, -2000), colour = "Black", linewidth = 0.4) +
+  
+  # Escollim l'escala de colros mako:
+  
+  scale_fill_viridis_d(option = "mako", name = "Profunditat (m)") +
+  
+  # Fem servir coord_fixed per fixar les proporcions entre els eixos x i y:
+  
+  coord_fixed() +
+  
+  # Eliminem la graella del gràfic:
+  
+  theme(panel.grid = element_blank()) +
+  
+  # Afegim títol, peu amb la font i eliminem les etiquetes dels eixos x i y:
+  
+  labs(title = "Canyons de la Costa Brava",
+       caption = "Font: General Bathymetric Chart of the Oceans (GEBCO) (2026).",
+       x = NULL,
+       y = NULL)
+
+# Finalment, mostrem el gràfic i guardem el resultat com a png:
+
+gebco_contour
+
+ggsave("contour.png", plot = gebco_contour, width = 9, height = 8, bg = "white")
+  
+```
+Referències:
+
+https://gis.stackexchange.com/questions/456155/geotiff-to-data-frame-using-r
+https://ggplot2.tidyverse.org/reference/geom_contour.html
+https://r-statistics.co/ggplot2-geom_contour-in-R.html
+https://towardsdev.com/contour-plot-with-matplotlib-f78eea5da275
+https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html
+https://www.geeksforgeeks.org/r-language/remove-grid-and-background-from-plot-using-ggplot2-in-r/
+https://ggplot2.tidyverse.org/reference/labs.html
+https://ggplot2.tidyverse.org/reference/ggsave.html
+
