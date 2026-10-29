@@ -1,0 +1,182 @@
+---
+title: "Circular Dendrogram"
+subtitle: "M2.959 - Visualització de dades"
+output: html_document
+date: "2026-10-30"
+lang: ca
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dendextend)
+library(circlize)
+
+```
+
+```{r data_load}
+# CÀRREGA DE DADES -------------------------------------------------------------
+
+idescat_data <- read.csv('idescat_data.csv')
+
+```
+
+```{r data_preprocess}
+# PREPROCESSAMENT DE DADES -----------------------------------------------------
+
+# Eliminem els registres relatius a agregats, deixant les 42 comarques i l'Aran:
+
+com_data <- idescat_data[1:43,]
+
+# Agrupem els atributs en cinc categories:
+
+basic <- rowSums(com_data[, c('Analfabetisme',
+                              'Educació.primària.incompleta',
+                              'Educació.primària')])
+eso <- com_data$Primera.etapa.d.educació.secundària.i.similar
+
+post <- rowSums(com_data[, c('Segona.etapa.d.educació.secundària.amb.orientació.general',
+                              'Segona.etapa.d.educació.secundària.amb.orientació.professional')])
+fp_sup <- com_data$Ensenyament.de.grau.superior.de.formació.professional.i.similars
+
+higher <-rowSums(com_data[, c('Graus.universitaris.de.fins.a.240.crèdits.i.similars',
+                              'Graus.universitaris.de.més.de.240.crèdits.i.similars',
+                              'Màster.universitari.i.similars',
+                              'Doctorat.universitari')])
+
+# Generem un dataframe amb els nous atributs, afegint les comarques com a índex:
+
+com_df <- data.frame(basic, eso, post, fp_sup, higher, row.names = com_data$comarca)
+
+# Per tal d'aconseguir proporcions, dividim les dades de cada comarca pel seu
+# nombre d'habitants:
+
+com_df <- com_df / com_data$total
+
+```
+
+```{r dendrogram_creation}
+
+# CREACIÓ DEL DENDROGRAMA CIRCULAR ---------------------------------------------
+
+# Generem la matriu de distàncies amb la funció dist:
+
+dis_matrix <- dist(com_df)
+
+# Usem la funció hclust per a realitzar un agrupament jeràrquic en base a la
+# matriu de distància i, posteriorment, convertim el resultat en un dendrograma:
+
+hc <- as.dendrogram(hclust(dis_matrix))
+
+# Afegim colors a les branques i etiquetes segons cinc grups (k=5):
+
+dend_col = c("#CC476B", "#917600", "#009232", "#008FB7", "#A352D1")
+
+hc <- hc %>%
+  color_branches(k = 5, col = dend_col) %>%
+  color_labels(k = 5, col = dend_col)
+
+```
+
+```{r circular_dendrogram}
+
+# MOSTRA DEL DENDROGRAMA CIRCULAR ----------------------------------------------
+
+# Usem la funció per visualitzar el dendrograma, ajustant al mida dels espais
+# destinats a les etiquetes (labels_track_height) i a l'arbre interior
+# (dend_track_height):
+
+circlize_dendrogram(hc,
+                    labels_track_height = 0.25,
+                    dend_track_height = 0.7)
+
+```
+
+```{r analysis}
+
+# ANÀLISI DELS CLUSTERS --------------------------------------------------------
+
+# Dividim el dendrograma en cinc branques, per tal que coincideixin amb
+# aquelles amb diferent color:
+
+clusters <- cutree(hc, k = 5)
+
+# Per a la següent part, s'ha tingut molt en compte el codi i les explicacions
+# de l'enllaç presentat al final de la cel·la.
+
+# En primer lloc, ordenem les comarques pel grup al que pertanyen (de l'1 al 5)
+# i, posteriorment, ens quedem únicament amb el nom d'aquestes. Una vegada tenim
+# el vector amb els noms ordenats, extraiem els seus colors mitjançant la funció
+# labels_colors. Finalment, usem la funció unique per tal d'aconseguir un vector
+# amb els colors de cada grup ordenats de l'1 al 5.
+
+dend_colors <- labels_colors(hc)[clusters %>% sort %>% names]
+clust_col <- dend_colors %>% unique
+
+# A continuació, crearem una taula amb les mitjanes de cada atribut, per a cada
+# grup, per tal de poder extreure conclusions i crear la llegenda:
+
+group_1 <- rownames(com_df)[clusters == 1]
+group_2 <- rownames(com_df)[clusters == 2]
+group_3 <- rownames(com_df)[clusters == 3]
+group_4 <- rownames(com_df)[clusters == 4]
+group_5 <- rownames(com_df)[clusters == 5]
+
+rbind(round(colMeans(com_df[group_1,]), 2),
+      round(colMeans(com_df[group_2,]), 2),
+      round(colMeans(com_df[group_3,]), 2),
+      round(colMeans(com_df[group_4,]), 2),
+      round(colMeans(com_df[group_5,]), 2))
+
+# https://stackoverflow.com/questions/36759467/extract-cluster-color-from-output-of-dendextendcirclize-dendrogram
+
+```
+
+```{r data_save}
+
+# CREACIÓ DEL FITXER PNG -------------------------------------------------------
+
+# Fem servir la funció png per a guardar la visualització del dendrograma en
+# bona resolució:
+
+png("dendrograma.png", width = 2000, height = 2000, res = 200)
+
+# Afegim vores per estètica i per deixar més espai al títol:
+
+par(mar=c(3,3,7,3))
+
+# Tornme a crear la visualització del dendrograma:
+
+circlize_dendrogram(hc,
+                    labels_track_height = 0.25,
+                    dend_track_height = 0.7)
+
+# Afegim el títol:
+
+title(main="Similitud entre comarques catalanes segons el nivell\n educatiu de la població (2024)", line = 2)
+
+# Creem la llegenda en base a la informació analitzada:
+
+legend(x = -1.2, y = -0.85,
+       legend = c("Formació mitjana-baixa",
+                  "Formació mitjana",
+                  "Formació mitjana-alta",
+                  "Formació alta",
+                  "Formació baixa"),
+       fill = clust_col,
+       bty = "n",
+       cex = 0.8)
+
+# Guardem el resultat a la carpeta de treball:
+
+dev.off()
+
+```
+Referències:
+
+https://r-charts.com/part-whole/circular-dendrogram/#customization
+https://www.rdocumentation.org/packages/dendextend/versions/1.19.1/topics/circlize_dendrogram
+https://r-graph-gallery.com/340-custom-your-dendrogram-with-dendextend.html
+https://www.datamentor.io/r-programming/saving-plot
+https://r-charts.com/base-r/legend/
+https://stackoverflow.com/questions/36759467/extract-cluster-color-from-output-of-dendextendcirclize-dendrogram
